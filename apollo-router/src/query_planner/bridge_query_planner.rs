@@ -326,7 +326,7 @@ impl BridgeQueryPlanner {
         operation: Option<String>,
         key: CacheKeyMetadata,
         selections: Query,
-        options: Option<PlanOptions>,
+        plan_options: PlanOptions,
     ) -> Result<QueryPlannerContent, QueryPlannerError> {
         fn is_validation_error(errors: &PlanErrors) -> bool {
             errors.errors.iter().all(|err| err.validation_error)
@@ -379,7 +379,7 @@ impl BridgeQueryPlanner {
 
         let planner_result = match self
             .planner
-            .plan(filtered_query.clone(), operation.clone(), options)
+            .plan(filtered_query.clone(), operation.clone(), plan_options)
             .await
             .map_err(QueryPlannerError::RouterBridgeError)?
             .into_result()
@@ -533,19 +533,13 @@ impl Service<QueryPlannerRequest> for BridgeQueryPlanner {
                 }
             }
 
-            let plan_options = {
-                if let Ok(Some(override_labels)) = context.get::<&str, Vec<String>>(OVERRIDE_KEY) {
-                    if override_labels.len() == 0 {
-                        None
-                    } else {
-                        Some(PlanOptions {
-                            override_labels: Some(override_labels.clone()),
-                        })
-                    }
-                } else {
-                    None
-                }
+            let plan_options = PlanOptions {
+                overridden_labels: context
+                    .get(OVERRIDE_KEY)
+                    .unwrap_or_default()
+                    .unwrap_or_default(),
             };
+
             tracing::info!("BridgeQueryPlanner: plan_options: {:?}", &plan_options);
 
             let res = this
@@ -760,7 +754,7 @@ mod tests {
             include_str!("testdata/query.graphql"),
             include_str!("testdata/query.graphql"),
             None,
-            None,
+            PlanOptions::default(),
         )
         .await
         .unwrap();
@@ -782,7 +776,7 @@ mod tests {
             "fragment UnusedTestFragment on User { id } query { me { id } }",
             "fragment UnusedTestFragment on User { id } query { me { id } }",
             None,
-            None,
+            PlanOptions::default(),
         )
         .await
         .unwrap_err();
@@ -831,7 +825,7 @@ mod tests {
                 None,
                 CacheKeyMetadata::default(),
                 selections,
-                None,
+                PlanOptions::default(),
             )
             .await
             .unwrap_err();
@@ -850,7 +844,7 @@ mod tests {
 
     #[test(tokio::test)]
     async fn test_plan_error() {
-        let result = plan(EXAMPLE_SCHEMA, "", "", None, None).await;
+        let result = plan(EXAMPLE_SCHEMA, "", "", None, PlanOptions::default()).await;
 
         assert_eq!(
             "couldn't plan query: query validation errors: Syntax Error: Unexpected <EOF>.",
@@ -865,7 +859,7 @@ mod tests {
             "{ x: __typename }",
             "{ x: __typename }",
             None,
-            None,
+            PlanOptions::default(),
         )
         .await
         .unwrap();
@@ -886,7 +880,7 @@ mod tests {
             "{ x: __typename __typename }",
             "{ x: __typename __typename }",
             None,
-            None,
+            PlanOptions::default(),
         )
         .await
         .unwrap();
@@ -1157,7 +1151,7 @@ mod tests {
             }
         }
 
-        let result = plan(EXAMPLE_SCHEMA, query, query, None, None)
+        let result = plan(EXAMPLE_SCHEMA, query, query, None, PlanOptions::default())
             .await
             .unwrap();
         if let QueryPlannerContent::Plan { plan, .. } = result {
@@ -1184,7 +1178,7 @@ mod tests {
         original_query: &str,
         filtered_query: &str,
         operation_name: Option<String>,
-        plan_options: Option<PlanOptions>,
+        plan_options: PlanOptions,
     ) -> Result<QueryPlannerContent, QueryPlannerError> {
         let mut configuration: Configuration = Default::default();
         configuration.supergraph.introspection = true;

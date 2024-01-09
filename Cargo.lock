@@ -5742,7 +5742,7 @@ dependencies = [
 [[package]]
 name = "router-bridge"
 version = "0.5.13+v2.6.2"
-source = "git+https://github.com/apollographql/federation-rs?branch=trevor/progressive-override#d906226f87679d2e65269826427e1a71aa6bcdb8"
+source = "git+https://github.com/apollographql/federation-rs?branch=trevor/progressive-override#810e411765fb2cb06a4c95e81f96b1fbac70a4b0"
 dependencies = [
  "anyhow",
  "async-channel 1.9.0",
